@@ -20,7 +20,7 @@ io.use(function(socket, next) {
   next();
 });
 
-// REDIS Subscription
+// REDIS Subscriptions
 
 if (process.env.REDIS_URL) {
   var redisSub = redis.createClient(process.env.REDIS_URL);
@@ -31,14 +31,23 @@ if (process.env.REDIS_URL) {
   var redisPub = redis.createClient();
   var redisData = redis.createClient();
 }
-redisSub.subscribe('message');
+
+// PLEASE NOTE !!!
+// The chat has a concept of messages and channels
+// Unfortunetly redis also has these concepts - it has messages EVENTS
+// for whenever data is published to a redis channel. :-0
+// I will try and indicate what is what in the comments.
+// TODO: perhaps we should think of better naming convetions.
+
+// REDIS CHANNELS that we subscribe to
+redisSub.subscribe('message'); 
 redisSub.subscribe('onlineIndicators');
 redisSub.subscribe('messageReceived');
 redisSub.subscribe('typingIndicator');
 
-// we should prob rename our channels so that 'message' as a channel name is not confused 
-// with message as a redis event
+// REDIS MESSAGE events.
 redisSub.on('message', function (channel, data) {
+  // Handlers for the various REDIS CHANNELS
   if (channel == 'typingIndicator') {
     var parsedData = JSON.parse(data);
     if (!clients[parsedData.receiverId]) { return; } 
