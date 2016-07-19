@@ -179,18 +179,23 @@ io.on('connection', function(socket){
     data.senderName = socket.userName;
     data.timestamp = new Date();
 
-    var receiverChatId = data.type == 'DirectMessage' ? data.senderId : 0;
-    receiverMessage = Object.assign({}, data, {chatId: receiverChatId});
+    // TODO: A hacky way of changing the chatId do we want to fix?
+    // For the sender the chatId is the receiver and for the reciever that chat id is the senderId
+    // The chat id is the same for both
+    var receiverChatId = data.type == 'DirectMessage' ? data.senderId : chatId;
+    var receiverMessage = Object.assign({}, data, {chatId: receiverChatId});
+
     if (data.type == 'Group') {
       redisData.lpush("group:general", JSON.stringify(data));
       redisData.ltrim("group:general", 0, 1000);
     } else {
       redisData.lpush("directMessages:" + socket.userId, JSON.stringify(data));
       redisData.ltrim("directMessages:" + socket.userId, 0, 1000);
+
       redisData.lpush("directMessages:" + data.receiverId, JSON.stringify(receiverMessage));
       redisData.ltrim("directMessages:" + data.receiverId, 0, 1000);
     }
-    console.log(SocketEvents.MessageSentConfirmation);
+    
     socket.emit(SocketEvents.MessageSentConfirmation, data);
     redisPub.publish(RedisChannels.Message, JSON.stringify(receiverMessage));
   });
