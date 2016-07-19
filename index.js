@@ -182,7 +182,7 @@ io.on('connection', function(socket){
     // TODO: A hacky way of changing the chatId do we want to fix?
     // For the sender the chatId is the receiver and for the reciever that chat id is the senderId
     // The chat id is the same for both
-    var receiverChatId = data.type == 'DirectMessage' ? data.senderId : chatId;
+    var receiverChatId = data.type == 'DirectMessage' ? data.senderId : data.chatId;
     var receiverMessage = Object.assign({}, data, {chatId: receiverChatId});
 
     if (data.type == 'Group') {
