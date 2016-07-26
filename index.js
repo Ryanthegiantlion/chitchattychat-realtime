@@ -1,13 +1,21 @@
 var redis = require('redis');
+var mongoose = require('mongoose')
 // TODO: Remove express as a dependency? We are not really using it.
 var app = require('express')();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 
+var DirectMessage = require('./models/directMessage')
+var GroupMessage = require('./models/groupMessage')
 var RedisChannels = require('./constants/redisChannels')
 var SocketEvents = require('./constants/socketEvents')
 
 var clients = {}
+
+var mongoUrl = process.env.MONGODB_URI || 'mongodb://localhost:27017/test'
+
+// TODO: Should we be connecting here?
+mongoose.connect(mongoUrl)
 
 // SOCKET IO Middleware
 
@@ -20,6 +28,7 @@ io.use(function(socket, next) {
     "userId": handshakeData._query['userId'],
     "socket": socket.id
   });
+
   clients[handshakeData._query['userId']] = {
     "userName": handshakeData._query['userName'],
     "socket": socket.id
@@ -28,8 +37,6 @@ io.use(function(socket, next) {
   socket.userName = handshakeData._query['userName'];
   next();
 });
-
-// REDIS Subscriptions
 
 if (process.env.REDIS_URL) {
   var redisSub = redis.createClient(process.env.REDIS_URL);
@@ -41,23 +48,37 @@ if (process.env.REDIS_URL) {
   var redisData = redis.createClient();
 }
 
-// PLEASE NOTE !!!
-// The chat has a concept of messages and channels
-// Unfortunetly redis also has these concepts - it has messages EVENTS
-// for whenever data is published to a redis channel. :-0
-// I will try and indicate what is what in the comments.
-// TODO: perhaps we should think of better naming convetions.
 
-// REDIS CHANNELS that we subscribe to
 
 for (var key in RedisChannels) {
   redisSub.subscribe(RedisChannels[key])
 } 
 
-// REDIS MESSAGE events.
+// REDIS subscriptions
+
 redisSub.on('message', function (channel, data) {
   // Handlers for the various REDIS CHANNELS
-  if (channel == RedisChannels.TypingStatus) {
+  if (channel == RedisChannels.Message){
+    parsedData = JSON.parse(data);
+    if (parsedData.type == 'Group') {
+      var senderSocketId = clients[parsedData.senderId].socket;
+      if (io.sockets.connected[senderSocketId]) {
+        io.sockets.connected[senderSocketId].broadcast.emit(SocketEvents.Message, parsedData);
+      } else {
+        io.emit(SocketEvents.Message, parsedData);
+      }
+    }
+    else if (parsedData.type == 'DirectMessage'){
+      if (clients[parsedData.receiverId]) {
+        var receiverSocketId = clients[parsedData.receiverId].socket;
+        var senderSocketId = clients[parsedData.senderId].socket;
+        if (io.sockets.connected[receiverSocketId]) {
+          io.sockets.connected[receiverSocketId].emit(SocketEvents.Message, parsedData);
+        }
+      }
+    }
+  } 
+  else if (channel == RedisChannels.TypingStatus) {
     var parsedData = JSON.parse(data);
     if (!clients[parsedData.receiverId]) { return; } 
     var receiverSocketId = clients[parsedData.receiverId].socket;
@@ -66,7 +87,6 @@ redisSub.on('message', function (channel, data) {
     }
   }
   else if (channel == RedisChannels.MessageDeliveredConfirmation) {
-    console.log('d2');
     var parsedData = JSON.parse(data);
     if (!clients[parsedData.senderId]) { return; }
     var senderSocketId = clients[parsedData.senderId].socket;
@@ -86,65 +106,29 @@ redisSub.on('message', function (channel, data) {
       if (err) {
         return console.log('error getting online indicators from redis');
       } else {
-        console.log('online users back from redis:');
+        console.log('Online users:');
         console.log(data.map((id) => ({id: id, name: (clients[id] != undefined ? clients[id].userName : '')})));
         console.log(clients)
         io.emit(SocketEvents.OnlineStatus, {onlineUsers: data});
-      }
-        
+      }  
     });
-  }
-  else if (channel == RedisChannels.Message){
-    console.log('redis handler')
-    console.log(data)
-    parsedData = JSON.parse(data);
-    if (parsedData.type == 'Group') {
-      console.log('G')
-      var senderSocketId = clients[parsedData.senderId].socket;
-      if (io.sockets.connected[senderSocketId]) {
-        io.sockets.connected[senderSocketId].broadcast.emit(SocketEvents.Message, parsedData);
-      } else {
-        io.emit(SocketEvents.Message, parsedData);
-      }
-    }
-    else if (parsedData.type == 'DirectMessage'){
-      console.log('DM')
-      // TODO: do we need this double check?
-      if (clients[parsedData.receiverId]) {
-        console.log('got client')
-        var receiverSocketId = clients[parsedData.receiverId].socket;
-        var senderSocketId = clients[parsedData.senderId].socket;
-        // TODO: imrpve this!!!!
-        if (io.sockets.connected[receiverSocketId]) {
-          console.log('got socket')
-          io.sockets.connected[receiverSocketId].emit(
-            SocketEvents.Message, parsedData);
-        }
-      }
-    }
   }
 });
 
-// SOCKET IO events
-
 var getOfflineMessages = function(socket) {
-
   var lastMessageTimeStamp = socket.request._query['lastMessageTimeStamp'];
   var userId = socket.userId;
 
-  console.log('checking for offline messages for user ' + socket.userName +  ' and timestamp ' + lastMessageTimeStamp);
+  //console.log('checking for offline messages for user ' + socket.userName +  ' and timestamp ' + lastMessageTimeStamp);
 
   redisData.lrange("directMessages:" + userId, 0, -1, function(err, data) {
-    if (err) { console.log('Error getting direct messages on connect') };
-    console.log(data);
+    if (err) { 
+      console.log('Error getting direct messages on connect') 
+    };
 
     var newMessages = data.map((item) => JSON.parse(item));
-    console.log('fhgfhhhhhhhhhhhhhhhhhhhhhh')
-    console.log(newMessages)
     if (newMessages.length > 0 && lastMessageTimeStamp) {
-      console.log('fhgfhhhhhhhhhhhhhhhhhhhhhhsdsdfsdfsdfsfdsdfsdf')
       if (lastMessageTimeStamp) {
-        console.log('fdfsdf')
         newMessages = newMessages.filter((item) => item.timestamp > lastMessageTimeStamp);
       }
     }
@@ -158,14 +142,15 @@ var getOfflineMessages = function(socket) {
   });
 }
 
+// SOCKET IO events
+
 io.on('connection', function(socket){
 
   getOfflineMessages(socket);
 
   redisData.sadd('onlineStatuses', socket.userId);
   redisPub.publish(RedisChannels.OnlineStatus, socket.userId);
-  // TODO: Prob a bit hackey. We pretend as if a message has just been receied in realtime
-  // perhaps should rename the channel?
+  // TODO: A hackey method to get delivery confirmations on reconnect
   redisPub.publish(RedisChannels.MessageDeliveredConfirmation, JSON.stringify({senderId: socket.userId}));
 
   socket.on('disconnect', function(){
@@ -179,29 +164,43 @@ io.on('connection', function(socket){
     data.senderName = socket.userName;
     data.timestamp = new Date();
 
-    // TODO: A hacky way of changing the chatId do we want to fix?
-    // For the sender the chatId is the receiver and for the reciever that chat id is the senderId
-    // The chat id is the same for both
-    var receiverChatId = data.type == 'DirectMessage' ? data.senderId : data.chatId;
-    var receiverMessage = Object.assign({}, data, {chatId: receiverChatId});
+    if (data.type == 'Group') {  
+      var message = new GroupMessage(data);
+      message.save(function (err) {
+        if (!err) {
+          redisData.lpush("group:general", JSON.stringify(data));
+          redisData.ltrim("group:general", 0, 1000);
 
-    if (data.type == 'Group') {
-      redisData.lpush("group:general", JSON.stringify(data));
-      redisData.ltrim("group:general", 0, 1000);
+          socket.emit(SocketEvents.MessageSentConfirmation, data);
+          redisPub.publish(RedisChannels.Message, JSON.stringify(data));
+          return console.log("created group messages");
+        } else {
+          //TODO: return page with errors
+          return console.log(err);
+        }
+      });
     } else {
-      redisData.lpush("directMessages:" + socket.userId, JSON.stringify(data));
-      redisData.ltrim("directMessages:" + socket.userId, 0, 1000);
+      var message = new DirectMessage(data);
+      message.save(function (err) {
+        if (!err) {
+          redisData.lpush("directMessages:" + socket.userId, JSON.stringify(data));
+          redisData.ltrim("directMessages:" + socket.userId, 0, 1000);
 
-      redisData.lpush("directMessages:" + data.receiverId, JSON.stringify(receiverMessage));
-      redisData.ltrim("directMessages:" + data.receiverId, 0, 1000);
-    }
-    
-    socket.emit(SocketEvents.MessageSentConfirmation, data);
-    redisPub.publish(RedisChannels.Message, JSON.stringify(receiverMessage));
+          redisData.lpush("directMessages:" + data.receiverId, JSON.stringify(data));
+          redisData.ltrim("directMessages:" + data.receiverId, 0, 1000);
+
+          socket.emit(SocketEvents.MessageSentConfirmation, data);
+          redisPub.publish(RedisChannels.Message, JSON.stringify(data));
+          return console.log("created direct message 2");
+        } else {
+          //TODO: return page with errors
+          return console.log(err);
+        }
+      }); 
+    }    
   });
 
   socket.on(SocketEvents.MessageDeliveredConfirmation, function(data) {
-    //console.log('got delivery confirmation')
     redisData.lpush("messageDeliveredQueue:" + data.senderId, JSON.stringify(data));
     redisData.ltrim("messageDeliveredQueue:" + data.senderId, 0, 1000);
     redisPub.publish(RedisChannels.MessageDeliveredConfirmation, JSON.stringify(data));
