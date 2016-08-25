@@ -218,6 +218,7 @@ io.on('connection', function(socket){
     // console.log(data);
     // quick hack to pipe messages to the bot
     if (data.senderName != 'simplebot' && (data.type == 'Group' || data.receiverName == 'simplebot')) {
+      console.log('publishing on the bot channel');
       redisPub.publish(RedisChannels.BotMessage, JSON.stringify(data));
     }
 
