@@ -48,8 +48,8 @@ if (process.env.REDIS_URL) {
   var redisData = redis.createClient();
 }
 
-
-
+// TODO: This also subsribe to the bot messages channel though 
+// we don't have a handler for it!
 for (var key in RedisChannels) {
   redisSub.subscribe(RedisChannels[key])
 } 
@@ -61,9 +61,14 @@ redisSub.on('message', function (channel, data) {
   if (channel == RedisChannels.Message){
     parsedData = JSON.parse(data);
     if (parsedData.type == 'Group') {
-      var senderSocketId = clients[parsedData.senderId].socket;
-      if (io.sockets.connected[senderSocketId]) {
-        io.sockets.connected[senderSocketId].broadcast.emit(SocketEvents.Message, parsedData);
+      var connectedClient = clients[parsedData.senderId];
+        if (connectedClient) {
+        var senderSocketId = connectedClient.socket;
+        if (io.sockets.connected[senderSocketId]) {
+          io.sockets.connected[senderSocketId].broadcast.emit(SocketEvents.Message, parsedData);
+        } else {
+          io.emit(SocketEvents.Message, parsedData);
+        }
       } else {
         io.emit(SocketEvents.Message, parsedData);
       }
@@ -71,13 +76,55 @@ redisSub.on('message', function (channel, data) {
     else if (parsedData.type == 'DirectMessage'){
       if (clients[parsedData.receiverId]) {
         var receiverSocketId = clients[parsedData.receiverId].socket;
-        var senderSocketId = clients[parsedData.senderId].socket;
+        //var senderSocketId = clients[parsedData.senderId].socket;
         if (io.sockets.connected[receiverSocketId]) {
           io.sockets.connected[receiverSocketId].emit(SocketEvents.Message, parsedData);
         }
       }
     }
   } 
+  else if (channel == RedisChannels.BotReply) {
+    data = JSON.parse(data)
+
+    //data.senderId = socket.userId;
+    //data.senderName = socket.userName;
+    data.timestamp = new Date();
+
+    if (data.type == 'Group') {  
+      var message = new GroupMessage(data);
+      message.save(function (err) {
+        if (!err) {
+          redisData.lpush("group:general", JSON.stringify(data));
+          redisData.ltrim("group:general", 0, 1000);
+
+          //socket.emit(SocketEvents.MessageSentConfirmation, data);
+          redisPub.publish(RedisChannels.Message, JSON.stringify(data));
+          return console.log("created group messages");
+        } else {
+          //TODO: return page with errors
+          return console.log(err);
+        }
+      });
+    } else {
+      var message = new DirectMessage(data);
+      message.save(function (err) {
+        if (!err) {
+          redisData.lpush("directMessages:" + data.senderId, JSON.stringify(data));
+          redisData.ltrim("directMessages:" + data.senderId, 0, 1000);
+
+          redisData.lpush("directMessages:" + data.receiverId, JSON.stringify(data));
+          redisData.ltrim("directMessages:" + data.receiverId, 0, 1000);
+
+          //socket.emit(SocketEvents.MessageSentConfirmation, data);
+          redisPub.publish(RedisChannels.Message, JSON.stringify(data));
+          return console.log("created direct message 2");
+        } else {
+          //TODO: return page with errors
+          return console.log(err);
+        }
+      }); 
+    } 
+  }
   else if (channel == RedisChannels.TypingStatus) {
     var parsedData = JSON.parse(data);
     if (!clients[parsedData.receiverId]) { return; } 
@@ -109,6 +156,9 @@ redisSub.on('message', function (channel, data) {
         console.log('Online users:');
         console.log(data.map((id) => ({id: id, name: (clients[id] != undefined ? clients[id].userName : '')})));
         console.log(clients)
+        // TODO: add bot id. very hacky trolololol!
+        data.push('57be6070296ad1b878399281')
+        console.log(data)
         io.emit(SocketEvents.OnlineStatus, {onlineUsers: data});
       }  
     });
@@ -163,6 +213,12 @@ io.on('connection', function(socket){
     data.senderId = socket.userId;
     data.senderName = socket.userName;
     data.timestamp = new Date();
+
+    // console.log(data);
+    // quick hack to pipe messages to the bot
+    if (data.senderName != 'simplebot' && (data.type == 'Group' || data.receiverName == 'simplebot')) {
+      redisPub.publish(RedisChannels.BotMessage, JSON.stringify(data));
+    }
 
     if (data.type == 'Group') {  
       var message = new GroupMessage(data);
