@@ -157,7 +157,8 @@ redisSub.on('message', function (channel, data) {
         console.log(data.map((id) => ({id: id, name: (clients[id] != undefined ? clients[id].userName : '')})));
         console.log(clients)
         // TODO: add bot id. very hacky trolololol!
-        data.push('57be6070296ad1b878399281')
+        //data.push('57be6070296ad1b878399281')
+        data.push('57be9d4b741f998795f31b62')
         console.log(data)
         io.emit(SocketEvents.OnlineStatus, {onlineUsers: data});
       }  
