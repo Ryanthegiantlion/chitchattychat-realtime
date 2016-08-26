@@ -4,7 +4,9 @@ var RedisChannels = {
 	OnlineStatus: 'onlineStatusChannel',
 	TypingStatus: 'typingStatusChannel',
 	BotMessage: 'botMessageChannel',
-	BotReply: 'botReplyChannel'
+	BotReply: 'botReplyChannel',
+	SmartBotMessage: 'smartBotMessageChannel',
+	SmartBotReply: 'smartBotReplyChannel'
 }
 
 module.exports = RedisChannels
