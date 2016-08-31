@@ -126,7 +126,7 @@ redisSub.on('message', function (channel, data) {
       }); 
     } 
   }
-  else if (channel == RedisChannels.SmartBotReply) {
+  else if (channel == RedisChannels.SmartBotReply || channel == RedisChannels.FlowerBotReply) {
     console.log('sdfsdfsfd')
     data = JSON.parse(data)
 
@@ -190,6 +190,8 @@ redisSub.on('message', function (channel, data) {
         data.push('57be9d4b741f998795f31b62')
         //data.push('57c01238296ad1b878399283')57c002f7741f998795f31c95
         data.push('57c002f7741f998795f31c95')
+
+        data.push('57c6fcb4741f998795f322f5')
         console.log(data)
         io.emit(SocketEvents.OnlineStatus, {onlineUsers: data});
       }  
@@ -260,6 +262,11 @@ io.on('connection', function(socket){
     if (data.senderName != 'smartbot' && (data.type == 'Group' || data.receiverName == 'smartbot')) {
       console.log('publishing on the smart bot channel');
       redisPub.publish(RedisChannels.SmartBotMessage, JSON.stringify(data));
+    }
+
+    if (data.senderName != 'flowerbot' && (data.type == 'Group' || data.receiverName == 'flowerbot')) {
+      console.log('publishing on the flower bot channel');
+      redisPub.publish(RedisChannels.FlowerBotMessage, JSON.stringify(data));
     }
 
     if (data.type == 'Group') {  
