@@ -126,7 +126,7 @@ redisSub.on('message', function (channel, data) {
   }
   else {
     Bots.forEach((bot) => {
-      if (channel == bot.inChanel) {
+      if (channel == bot.inChannel) {
          data = JSON.parse(data)
 
         //data.senderId = socket.userId;
