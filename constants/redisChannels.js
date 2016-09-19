@@ -9,7 +9,7 @@ var RedisChannels = {
 	SmartBotReply: 'smartBotReplyChannel',
 	FlowerBotMessage: 'flowerBotMessageChannel',
 	FlowerBotReply: 'flowerBotReplyChannel',
-	InsuranceBotMessage: 'insuranceBotMessageChannel'
+	InsuranceBotMessage: 'insuranceBotMessageChannel',
 	InsuranceBotReply: 'insuranceBotReplyChannel'
 }
 
