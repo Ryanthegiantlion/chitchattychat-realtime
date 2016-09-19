@@ -118,7 +118,7 @@ redisSub.on('message', function (channel, data) {
         console.log(data.map((id) => ({id: id, name: (clients[id] != undefined ? clients[id].userName : '')})));
         console.log(clients)
         // Bots are always online:
-        Bots.foreach((bot) => data.push(bot.id));
+        Bots.forEach((bot) => data.push(bot.id));
         console.log(data)
         io.emit(SocketEvents.OnlineStatus, {onlineUsers: data});
       }  
@@ -168,7 +168,7 @@ redisSub.on('message', function (channel, data) {
           }); 
         }
       }
-    } 
+    }); 
   }
 });
 
@@ -225,7 +225,7 @@ io.on('connection', function(socket){
 
     // console.log(data);
     // quick hack to pipe messages to the bot
-    Bots.foreach((bot) = {
+    Bots.forEach((bot) => {
       if (data.senderName != bot.name && (data.type == 'Group' || data.receiverName == bot.name)) {
         console.log('publishing on the ' + bot.name + ' bot channel');
         redisPub.publish(bot.outChannel, JSON.stringify(data));
