@@ -10,7 +10,7 @@ var GroupMessage = require('./models/groupMessage')
 var RedisChannels = require('./constants/redisChannels')
 var SocketEvents = require('./constants/socketEvents')
 
-var Bots = require('./bots/bots')
+var Bots = require('./bots/bots').Bots
 
 var clients = {}
 

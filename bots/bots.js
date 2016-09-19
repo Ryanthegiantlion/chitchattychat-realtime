@@ -4,7 +4,7 @@ var RedisChannels = require('../constants/redisChannels')
 if (process.env.NODE_ENV && process.env.NODE_ENV == 'production') {
 	Bots = require('./bots.production')
 } else {
-	Bots = require('../bots.development')
+	Bots = require('./bots.development')
 }
 
-module.exports = { Bots: Bots }
+module.exports = Bots
