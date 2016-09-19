@@ -1,3 +1,5 @@
+var RedisChannels = require('../constants/redisChannels')
+
 var InsuranceBot = {
 	id: '57df584e741f998795f33693',
 	name: 'insurancebot',
@@ -28,4 +30,4 @@ var SimpleBot = {
 
 var Bots = [InsuranceBot, FlowerBot, SmartBot, SimpleBot]
 
-modele.exports = { Bots: Bots }
+module.exports = { Bots: Bots }
