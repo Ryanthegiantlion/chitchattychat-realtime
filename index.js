@@ -10,6 +10,8 @@ var GroupMessage = require('./models/groupMessage')
 var RedisChannels = require('./constants/redisChannels')
 var SocketEvents = require('./constants/socketEvents')
 
+var Bots = require('./bots/bots')
+
 var clients = {}
 
 var mongoUrl = process.env.MONGODB_URI || 'mongodb://localhost:27017/test'
@@ -83,76 +85,6 @@ redisSub.on('message', function (channel, data) {
         }
       }
     }
-  } 
-  else if (channel == RedisChannels.BotReply) {
-    data = JSON.parse(data)
-
-    //data.senderId = socket.userId;
-    //data.senderName = socket.userName;
-    data.timestamp = new Date();
-
-    if (data.type == 'Group') {  
-      var message = new GroupMessage(data);
-      message.save(function (err) {
-        if (!err) {
-          redisData.lpush("group:general", JSON.stringify(data));
-          redisData.ltrim("group:general", 0, 1000);
-
-          //socket.emit(SocketEvents.MessageSentConfirmation, data);
-          redisPub.publish(RedisChannels.Message, JSON.stringify(data));
-          return console.log("created group messages");
-        } else {
-          //TODO: return page with errors
-          return console.log(err);
-        }
-      });
-    } else {
-      var message = new DirectMessage(data);
-      message.save(function (err) {
-        if (!err) {
-          redisData.lpush("directMessages:" + data.senderId, JSON.stringify(data));
-          redisData.ltrim("directMessages:" + data.senderId, 0, 1000);
-
-          redisData.lpush("directMessages:" + data.receiverId, JSON.stringify(data));
-          redisData.ltrim("directMessages:" + data.receiverId, 0, 1000);
-
-          //socket.emit(SocketEvents.MessageSentConfirmation, data);
-          redisPub.publish(RedisChannels.Message, JSON.stringify(data));
-          return console.log("created direct message 2");
-        } else {
-          //TODO: return page with errors
-          return console.log(err);
-        }
-      }); 
-    } 
-  }
-  else if (channel == RedisChannels.SmartBotReply || channel == RedisChannels.FlowerBotReply) {
-    console.log('sdfsdfsfd')
-    data = JSON.parse(data)
-
-    //data.senderId = socket.userId;
-    //data.senderName = socket.userName;
-    data.timestamp = new Date();
-  
-    var message = new DirectMessage(data);
-    message.save(function (err) {
-      if (!err) {
-        redisData.lpush("directMessages:" + data.senderId, JSON.stringify(data));
-        redisData.ltrim("directMessages:" + data.senderId, 0, 1000);
-
-        redisData.lpush("directMessages:" + data.receiverId, JSON.stringify(data));
-        redisData.ltrim("directMessages:" + data.receiverId, 0, 1000);
-
-        //socket.emit(SocketEvents.MessageSentConfirmation, data);
-        console.log('sdfsdfsfd2')
-        console.log(data)
-        redisPub.publish(RedisChannels.Message, JSON.stringify(data));
-        return console.log("created direct message 2");
-      } else {
-        //TODO: return page with errors
-        return console.log(err);
-      }
-    }); 
   }
   else if (channel == RedisChannels.TypingStatus) {
     var parsedData = JSON.parse(data);
@@ -185,17 +117,58 @@ redisSub.on('message', function (channel, data) {
         console.log('Online users:');
         console.log(data.map((id) => ({id: id, name: (clients[id] != undefined ? clients[id].userName : '')})));
         console.log(clients)
-        // TODO: add bot id. very hacky trolololol!
-        //data.push('57be6070296ad1b878399281')
-        data.push('57be9d4b741f998795f31b62')
-        //data.push('57c01238296ad1b878399283')57c002f7741f998795f31c95
-        data.push('57c002f7741f998795f31c95')
-
-        data.push('57c6fcb4741f998795f322f5')
+        // Bots are always online:
+        Bots.foreach((bot) => data.push(bot.id));
         console.log(data)
         io.emit(SocketEvents.OnlineStatus, {onlineUsers: data});
       }  
     });
+  }
+  else {
+    Bots.forEach((bot) => {
+      if (channel == bot.inChanel) {
+         data = JSON.parse(data)
+
+        //data.senderId = socket.userId;
+        //data.senderName = socket.userName;
+        data.timestamp = new Date();
+
+        if (data.type == 'Group') {  
+          var message = new GroupMessage(data);
+          message.save(function (err) {
+            if (!err) {
+              redisData.lpush("group:general", JSON.stringify(data));
+              redisData.ltrim("group:general", 0, 1000);
+
+              //socket.emit(SocketEvents.MessageSentConfirmation, data);
+              redisPub.publish(RedisChannels.Message, JSON.stringify(data));
+              return console.log("created group messages");
+            } else {
+              //TODO: return page with errors
+              return console.log(err);
+            }
+          });
+        } else {
+          var message = new DirectMessage(data);
+          message.save(function (err) {
+            if (!err) {
+              redisData.lpush("directMessages:" + data.senderId, JSON.stringify(data));
+              redisData.ltrim("directMessages:" + data.senderId, 0, 1000);
+
+              redisData.lpush("directMessages:" + data.receiverId, JSON.stringify(data));
+              redisData.ltrim("directMessages:" + data.receiverId, 0, 1000);
+
+              //socket.emit(SocketEvents.MessageSentConfirmation, data);
+              redisPub.publish(RedisChannels.Message, JSON.stringify(data));
+              return console.log("created direct message 2");
+            } else {
+              //TODO: return page with errors
+              return console.log(err);
+            }
+          }); 
+        }
+      }
+    } 
   }
 });
 
@@ -252,22 +225,12 @@ io.on('connection', function(socket){
 
     // console.log(data);
     // quick hack to pipe messages to the bot
-    if (data.senderName != 'simplebot' && (data.type == 'Group' || data.receiverName == 'simplebot')) {
-      console.log('publishing on the bot channel');
-      redisPub.publish(RedisChannels.BotMessage, JSON.stringify(data));
-    }
-
-    console.log(data);
-    // quick hack to pipe messages to the bot
-    if (data.senderName != 'smartbot' && (data.type == 'Group' || data.receiverName == 'smartbot')) {
-      console.log('publishing on the smart bot channel');
-      redisPub.publish(RedisChannels.SmartBotMessage, JSON.stringify(data));
-    }
-
-    if (data.senderName != 'flowerbot' && (data.type == 'Group' || data.receiverName == 'flowerbot')) {
-      console.log('publishing on the flower bot channel');
-      redisPub.publish(RedisChannels.FlowerBotMessage, JSON.stringify(data));
-    }
+    Bots.foreach((bot) = {
+      if (data.senderName != bot.name && (data.type == 'Group' || data.receiverName == bot.name)) {
+        console.log('publishing on the ' + bot.name + ' bot channel');
+        redisPub.publish(bot.outChannel, JSON.stringify(data));
+      }
+    });
 
     if (data.type == 'Group') {  
       var message = new GroupMessage(data);

@@ -8,7 +8,9 @@ var RedisChannels = {
 	SmartBotMessage: 'smartBotMessageChannel',
 	SmartBotReply: 'smartBotReplyChannel',
 	FlowerBotMessage: 'flowerBotMessageChannel',
-	FlowerBotReply: 'flowerBotReplyChannel'
+	FlowerBotReply: 'flowerBotReplyChannel',
+	InsuranceBotMessage: 'insuranceBotMessageChannel'
+	InsuranceBotReply: 'insuranceBotReplyChannel'
 }
 
 module.exports = RedisChannels
