@@ -176,7 +176,9 @@ var getOfflineMessages = function(socket) {
   var lastMessageTimeStamp = socket.request._query['lastMessageTimeStamp'];
   var userId = socket.userId;
 
-  //console.log('checking for offline messages for user ' + socket.userName +  ' and timestamp ' + lastMessageTimeStamp);
+  console.log('******');
+  console.log('checking for offline messages for user ' + socket.userName +  ' and timestamp ' + lastMessageTimeStamp);
+  console.log(socket.request._query);
 
   redisData.lrange("directMessages:" + userId, 0, -1, function(err, data) {
     if (err) { 
@@ -190,11 +192,12 @@ var getOfflineMessages = function(socket) {
       }
     }
 
-    if (newMessages) {
+    if (newMessages && newMessages.length > 0) {
       console.log('sending ' + newMessages.length + ' offline messages')
       // TODO: Maybe keep it in order in redis?
       newMessages = newMessages.reverse();
-      newMessages.forEach((item) => socket.emit('message', item));
+      socket.emit(SocketEvents.OfflineMessages, newMessages);
+      // newMessages.forEach((item) => socket.emit('message', item));
     }
   });
 }
