@@ -38,7 +38,7 @@ function send_gcm_push(token, message, title) {
   // });
    
   // Set up the sender with you API key 
-  var sender = new gcm.Sender('AIzaSyDx1SmwIWlV8R-Ys8ADotCc9oCF20oXx8I');
+  var sender = new gcm.Sender('push key');
    
   // Add the registration tokens of the devices you want to send to 
   var registrationTokens = [];
