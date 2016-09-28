@@ -9,8 +9,11 @@ var DirectMessage = require('./models/directMessage')
 var GroupMessage = require('./models/groupMessage')
 var RedisChannels = require('./constants/redisChannels')
 var SocketEvents = require('./constants/socketEvents')
+var User = require('./models/user')
 
 var Bots = require('./bots/bots').Bots
+
+var pushClient = require('./services/push');
 
 var clients = {}
 
@@ -262,6 +265,21 @@ io.on('connection', function(socket){
 
           socket.emit(SocketEvents.MessageSentConfirmation, data);
           redisPub.publish(RedisChannels.Message, JSON.stringify(data));
+
+          User.findById(data.receiverId, function(err, user) {
+            if (err) {
+              console.log('error getting user');
+              return;
+            }
+
+            if (user && user.pushToken) {
+              pushClient.send_push(user.pushToken, user.platform, 'you got message yo', 'yes you did!!!');
+            } else {
+              console.log('no push token!');
+            }
+          });
+
+
           return console.log("created direct message 2");
         } else {
           //TODO: return page with errors
